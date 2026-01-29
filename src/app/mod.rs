@@ -1,21 +1,26 @@
 mod delete;
+mod download;
 mod indexing;
+mod local_fs;
 mod navigation;
 mod search;
 
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::time::Instant;
 
-use ratatui::widgets::TableState;
+use ratatui::widgets::{ListState, TableState};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use crate::credentials::McConfig;
-use crate::s3_client::{BucketInfo, IndexMsg, ObjectEntry, ObjectMetadata, S3Client};
+use crate::s3_client::{BucketInfo, DownloadMsg, IndexMsg, ObjectEntry, ObjectMetadata, S3Client};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pane {
     Remotes,
     Browser,
+    LocalFs,
 }
 
 #[derive(Debug, Clone)]
@@ -60,6 +65,24 @@ pub struct DeleteConfirm {
     pub selected_yes: bool,
 }
 
+pub struct LocalEntry {
+    pub name: String,
+    pub is_dir: bool,
+    #[allow(dead_code)]
+    pub size: u64,
+}
+
+pub struct DownloadProgress {
+    pub filename: String,
+    pub bytes_downloaded: u64,
+    pub total_bytes: u64,
+    pub speed_bps: f64,
+    pub files_done: usize,
+    pub files_total: usize,
+    pub complete: bool,
+    pub error: Option<String>,
+}
+
 pub struct App {
     pub pane: Pane,
     pub remotes: Vec<String>,
@@ -88,6 +111,20 @@ pub struct App {
     pub(crate) index_handle: Option<JoinHandle<()>>,
     pub index_complete: bool,
     pub(crate) index_key: Option<(String, String)>,
+
+    // Download / Local FS state
+    pub download_mode: bool,
+    pub local_path: PathBuf,
+    pub local_entries: Vec<LocalEntry>,
+    pub local_state: ListState,
+    pub rename_input: Option<String>,
+    pub rename_active: bool,
+    pub download_source: Option<(String, String)>, // (display_name, full_key)
+    pub download_source_is_dir: bool,
+    pub download_progress: Option<DownloadProgress>,
+    pub(crate) download_rx: Option<mpsc::Receiver<DownloadMsg>>,
+    pub(crate) download_handle: Option<JoinHandle<()>>,
+    pub(crate) download_started_at: Option<Instant>,
 
     pub(crate) config: McConfig,
     pub(crate) clients: HashMap<String, S3Client>,
@@ -127,6 +164,18 @@ impl App {
             index_handle: None,
             index_complete: false,
             index_key: None,
+            download_mode: false,
+            local_path: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            local_entries: Vec::new(),
+            local_state: ListState::default(),
+            rename_input: None,
+            rename_active: false,
+            download_source: None,
+            download_source_is_dir: false,
+            download_progress: None,
+            download_rx: None,
+            download_handle: None,
+            download_started_at: None,
             config,
             clients: HashMap::new(),
         }

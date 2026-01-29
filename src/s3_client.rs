@@ -1,9 +1,14 @@
 use std::collections::HashMap;
+use std::path::Path;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::Result;
 use aws_sdk_s3::config::{BehaviorVersion, Credentials, Region};
 use aws_sdk_s3::types::{Delete, ObjectIdentifier};
 use aws_sdk_s3::Client;
+use tokio::sync::{mpsc, Semaphore};
 
 #[derive(Clone)]
 pub struct S3Client {
@@ -40,6 +45,17 @@ pub struct ObjectMetadata {
     pub user_metadata: HashMap<String, String>,
     pub content_encoding: Option<String>,
     pub cache_control: Option<String>,
+}
+
+/// Progress updates sent from download tasks to the UI.
+#[derive(Clone)]
+pub struct DownloadMsg {
+    pub bytes_downloaded: u64,
+    pub total_bytes: u64,
+    pub files_done: usize,
+    pub files_total: usize,
+    pub complete: bool,
+    pub error: Option<String>,
 }
 
 /// Messages sent from the background indexing task to the UI.
@@ -265,5 +281,178 @@ impl S3Client {
             content_encoding: output.content_encoding().map(|s| s.to_string()),
             cache_control: output.cache_control().map(|s| s.to_string()),
         })
+    }
+
+    /// Download a single object to a local file, reporting progress.
+    pub async fn download_object(
+        &self,
+        bucket: &str,
+        key: &str,
+        dest: &Path,
+        tx: &mpsc::Sender<DownloadMsg>,
+    ) -> Result<()> {
+        // Get object size first via head
+        let head = self.client.head_object().bucket(bucket).key(key).send().await?;
+        let total_bytes = head.content_length().unwrap_or(0) as u64;
+
+        // Start download
+        let output = self.client.get_object().bucket(bucket).key(key).send().await?;
+        let mut body = output.body.into_async_read();
+
+        // Ensure parent directory exists
+        if let Some(parent) = dest.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+
+        let mut file = tokio::fs::File::create(dest).await?;
+        let mut downloaded: u64 = 0;
+        let mut last_report = Instant::now();
+        let mut buf = vec![0u8; 8192];
+
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        loop {
+            let n = body.read(&mut buf).await?;
+            if n == 0 {
+                break;
+            }
+            file.write_all(&buf[..n]).await?;
+            downloaded += n as u64;
+
+            // Report progress every 100ms or at completion
+            if last_report.elapsed().as_millis() >= 100 || downloaded == total_bytes {
+                let _ = tx
+                    .send(DownloadMsg {
+                        bytes_downloaded: downloaded,
+                        total_bytes,
+                        files_done: 0,
+                        files_total: 1,
+                        complete: false,
+                        error: None,
+                    })
+                    .await;
+                last_report = Instant::now();
+            }
+        }
+
+        file.flush().await?;
+        Ok(())
+    }
+
+    /// Download all objects under `prefix` to a local directory with concurrency.
+    /// Reports aggregate progress through the channel.
+    pub async fn download_prefix(
+        &self,
+        bucket: &str,
+        prefix: &str,
+        dest_dir: &Path,
+        tx: mpsc::Sender<DownloadMsg>,
+        concurrency: usize,
+    ) -> Result<()> {
+        // First, list all objects under the prefix
+        let mut all_keys: Vec<(String, u64)> = Vec::new();
+        let mut continuation_token: Option<String> = None;
+
+        loop {
+            let mut builder = self.client.list_objects_v2().bucket(bucket).prefix(prefix);
+            if let Some(token) = &continuation_token {
+                builder = builder.continuation_token(token);
+            }
+            let output = builder.send().await?;
+            for obj in output.contents() {
+                if let Some(key) = obj.key() {
+                    if key.ends_with('/') {
+                        continue;
+                    }
+                    all_keys.push((key.to_string(), obj.size().unwrap_or(0) as u64));
+                }
+            }
+            match output.next_continuation_token() {
+                Some(token) => continuation_token = Some(token.to_string()),
+                None => break,
+            }
+        }
+
+        let files_total = all_keys.len();
+        let total_bytes: u64 = all_keys.iter().map(|(_, s)| s).sum();
+        let bytes_downloaded = Arc::new(AtomicU64::new(0));
+        let files_done = Arc::new(AtomicUsize::new(0));
+        let semaphore = Arc::new(Semaphore::new(concurrency));
+
+        let mut handles = Vec::new();
+
+        for (key, _size) in &all_keys {
+            let permit = semaphore.clone().acquire_owned().await?;
+            let client = self.client.clone();
+            let bucket = bucket.to_string();
+            let key = key.clone();
+            let rel_path = key.strip_prefix(prefix).unwrap_or(&key).to_string();
+            let dest = dest_dir.join(&rel_path);
+            let bytes_downloaded = bytes_downloaded.clone();
+            let files_done = files_done.clone();
+            let tx = tx.clone();
+
+            let handle = tokio::spawn(async move {
+                let result: Result<()> = async {
+                    let output = client.get_object().bucket(&bucket).key(&key).send().await?;
+                    let mut body = output.body.into_async_read();
+
+                    if let Some(parent) = dest.parent() {
+                        tokio::fs::create_dir_all(parent).await?;
+                    }
+
+                    let mut file = tokio::fs::File::create(&dest).await?;
+                    let mut buf = vec![0u8; 8192];
+                    let mut last_report = Instant::now();
+
+                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+                    loop {
+                        let n = body.read(&mut buf).await?;
+                        if n == 0 {
+                            break;
+                        }
+                        file.write_all(&buf[..n]).await?;
+                        let prev = bytes_downloaded.fetch_add(n as u64, Ordering::Relaxed);
+
+                        if last_report.elapsed().as_millis() >= 200 {
+                            let _ = tx
+                                .send(DownloadMsg {
+                                    bytes_downloaded: prev + n as u64,
+                                    total_bytes,
+                                    files_done: files_done.load(Ordering::Relaxed),
+                                    files_total,
+                                    complete: false,
+                                    error: None,
+                                })
+                                .await;
+                            last_report = Instant::now();
+                        }
+                    }
+                    file.flush().await?;
+                    files_done.fetch_add(1, Ordering::Relaxed);
+                    Ok(())
+                }
+                .await;
+
+                drop(permit);
+                result
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all downloads
+        let mut errors = Vec::new();
+        for handle in handles {
+            if let Ok(Err(e)) = handle.await {
+                errors.push(e.to_string());
+            }
+        }
+
+        if !errors.is_empty() {
+            anyhow::bail!("{} files failed: {}", errors.len(), errors[0]);
+        }
+
+        Ok(())
     }
 }

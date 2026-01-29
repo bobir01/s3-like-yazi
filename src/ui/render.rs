@@ -8,6 +8,7 @@ use ratatui::Frame;
 
 use crate::app::{App, Entry, Pane};
 
+use super::local_fs;
 use super::popups;
 use super::status;
 
@@ -38,15 +39,39 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     ]);
     frame.render_widget(Paragraph::new(title), outer[0]);
 
-    // Main content: remotes + browser
-    let content = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(22), Constraint::Min(30)])
-        .split(outer[1]);
+    // Main content: remotes + browser (+ local FS on right when downloading)
+    if app.download_mode {
+        let content = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(22),
+                Constraint::Min(30),
+                Constraint::Percentage(40),
+            ])
+            .split(outer[1]);
 
-    render_remotes(frame, app, content[0]);
-    render_browser(frame, app, content[1]);
-    render_metadata(frame, app, outer[2]);
+        render_remotes(frame, app, content[0]);
+        render_browser(frame, app, content[1]);
+        local_fs::render_local_fs(frame, app, content[2]);
+
+        // Show download target info in the metadata area
+        let meta_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Min(1)])
+            .split(outer[2]);
+
+        local_fs::render_download_target(frame, app, meta_layout[0]);
+        render_metadata(frame, app, meta_layout[1]);
+    } else {
+        let content = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Length(22), Constraint::Min(30)])
+            .split(outer[1]);
+
+        render_remotes(frame, app, content[0]);
+        render_browser(frame, app, content[1]);
+        render_metadata(frame, app, outer[2]);
+    }
 
     if app.search_active {
         status::render_search_bar(frame, app, outer[3]);

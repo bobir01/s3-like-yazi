@@ -75,7 +75,7 @@ pub fn render_help(frame: &mut Frame) {
     let area = frame.area();
 
     let width = 52u16.min(area.width.saturating_sub(4));
-    let height = 23u16.min(area.height.saturating_sub(2));
+    let height = 30u16.min(area.height.saturating_sub(2));
     let x = (area.width.saturating_sub(width)) / 2;
     let y = (area.height.saturating_sub(height)) / 2;
     let popup = ratatui::layout::Rect::new(x, y, width, height);
@@ -105,9 +105,20 @@ pub fn render_help(frame: &mut Frame) {
         )),
         Line::from(vec![key("/ or Ctrl+P"), desc("Search all objects")]),
         Line::from(vec![key("r"), desc("Refresh current view")]),
+        Line::from(vec![key("Shift+C"), desc("Download (copy) to local")]),
         Line::from(vec![key("d / Cmd+Bksp"), desc("Delete file or directory")]),
         Line::from(vec![key("Esc"), desc("Dismiss error / metadata")]),
         Line::from(vec![key("q"), desc("Quit")]),
+        Line::from(""),
+        Line::from(Span::styled(
+            "  Download Mode",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(vec![key("c"), desc("Confirm download here")]),
+        Line::from(vec![key("n"), desc("Rename file before saving")]),
+        Line::from(vec![key("Esc"), desc("Cancel download")]),
         Line::from(""),
         Line::from(Span::styled(
             "  Search Mode",

@@ -16,6 +16,7 @@ impl App {
                 }
                 self.metadata = None;
             }
+            Pane::LocalFs => self.local_move_up(),
         }
     }
 
@@ -34,6 +35,7 @@ impl App {
                 }
                 self.metadata = None;
             }
+            Pane::LocalFs => self.local_move_down(),
         }
     }
 
@@ -43,7 +45,14 @@ impl App {
         }
         self.pane = match self.pane {
             Pane::Remotes => Pane::Browser,
-            Pane::Browser => Pane::Remotes,
+            Pane::Browser => {
+                if self.download_mode {
+                    Pane::LocalFs
+                } else {
+                    Pane::Remotes
+                }
+            }
+            Pane::LocalFs => Pane::Remotes,
         };
     }
 
@@ -104,6 +113,7 @@ impl App {
                     }
                 }
             }
+            Pane::LocalFs => {}
         }
     }
 

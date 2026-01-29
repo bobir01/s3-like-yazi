@@ -5,6 +5,7 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::app::App;
+use super::local_fs;
 
 pub fn render_search_bar(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     let index_status = if app.index_complete {
@@ -44,6 +45,12 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: ratatui::layout::Re
         return;
     }
 
+    // Show download progress if active
+    if let Some(progress_line) = local_fs::render_download_progress(app, area.width) {
+        frame.render_widget(Paragraph::new(progress_line), area);
+        return;
+    }
+
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Min(1), Constraint::Length(
@@ -51,24 +58,43 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: ratatui::layout::Re
         )])
         .split(area);
 
-    let hints = Line::from(vec![
-        Span::styled(" q", Style::default().fg(Color::Yellow)),
-        Span::raw(" quit  "),
-        Span::styled("j/k", Style::default().fg(Color::Yellow)),
-        Span::raw(" nav  "),
-        Span::styled("Enter/l", Style::default().fg(Color::Yellow)),
-        Span::raw(" open  "),
-        Span::styled("h/Bksp", Style::default().fg(Color::Yellow)),
-        Span::raw(" back  "),
-        Span::styled("Tab", Style::default().fg(Color::Yellow)),
-        Span::raw(" pane  "),
-        Span::styled("r", Style::default().fg(Color::Yellow)),
-        Span::raw(" refresh  "),
-        Span::styled("/", Style::default().fg(Color::Yellow)),
-        Span::raw(" search  "),
-        Span::styled("?", Style::default().fg(Color::Yellow)),
-        Span::raw(" help"),
-    ]);
+    let hints = if app.download_mode {
+        Line::from(vec![
+            Span::styled(" j/k", Style::default().fg(Color::Yellow)),
+            Span::raw(" nav  "),
+            Span::styled("Enter", Style::default().fg(Color::Yellow)),
+            Span::raw(" open dir  "),
+            Span::styled("h/Bksp", Style::default().fg(Color::Yellow)),
+            Span::raw(" back  "),
+            Span::styled("c", Style::default().fg(Color::Yellow)),
+            Span::raw(" confirm  "),
+            Span::styled("n", Style::default().fg(Color::Yellow)),
+            Span::raw(" rename  "),
+            Span::styled("Tab", Style::default().fg(Color::Yellow)),
+            Span::raw(" pane  "),
+            Span::styled("Esc", Style::default().fg(Color::Yellow)),
+            Span::raw(" cancel"),
+        ])
+    } else {
+        Line::from(vec![
+            Span::styled(" q", Style::default().fg(Color::Yellow)),
+            Span::raw(" quit  "),
+            Span::styled("j/k", Style::default().fg(Color::Yellow)),
+            Span::raw(" nav  "),
+            Span::styled("Enter/l", Style::default().fg(Color::Yellow)),
+            Span::raw(" open  "),
+            Span::styled("h/Bksp", Style::default().fg(Color::Yellow)),
+            Span::raw(" back  "),
+            Span::styled("Tab", Style::default().fg(Color::Yellow)),
+            Span::raw(" pane  "),
+            Span::styled("r", Style::default().fg(Color::Yellow)),
+            Span::raw(" refresh  "),
+            Span::styled("/", Style::default().fg(Color::Yellow)),
+            Span::raw(" search  "),
+            Span::styled("?", Style::default().fg(Color::Yellow)),
+            Span::raw(" help"),
+        ])
+    };
     frame.render_widget(Paragraph::new(hints), cols[0]);
 
     if let Some(msg) = &app.status_message {
