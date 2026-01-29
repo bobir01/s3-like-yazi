@@ -1,8 +1,14 @@
 [package]
-name = "yazi-like-s3"
+name = "s3-like-yazi"
 version = "0.1.0"
 edition = "2024"
-description = "TUI file explorer for MinIO/S3 compatible storage"
+description = "A blazing-fast terminal file manager for S3-compatible storage, inspired by Yazi"
+license = "MIT"
+repository = "https://github.com/bobir01/s3-like-yazi"
+homepage = "https://github.com/bobir01/s3-like-yazi"
+readme = "README.md"
+keywords = ["s3", "minio", "tui", "file-manager", "terminal"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 # S3 Client
