@@ -15,6 +15,7 @@ impl App {
                     self.browser_state.select(Some(i - 1));
                 }
                 self.metadata = None;
+                self.preview.clear();
             }
             Pane::LocalFs => self.local_move_up(),
         }
@@ -34,6 +35,7 @@ impl App {
                     self.browser_state.select(Some(i + 1));
                 }
                 self.metadata = None;
+                self.preview.clear();
             }
             Pane::LocalFs => self.local_move_down(),
         }
@@ -125,6 +127,7 @@ impl App {
         self.error = None;
         self.status_message = None;
         self.metadata = None;
+        self.preview.clear();
         match self.location.clone() {
             Location::RemoteList => {}
             Location::BucketList { .. } => {

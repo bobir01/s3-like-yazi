@@ -107,6 +107,7 @@ pub fn render_help(frame: &mut Frame) {
         Line::from(vec![key("r"), desc("Refresh current view")]),
         Line::from(vec![key("Shift+C"), desc("Download (copy) to local")]),
         Line::from(vec![key("d / Cmd+Bksp"), desc("Delete file or directory")]),
+        Line::from(vec![key("p"), desc("Preview file (text/image/video)")]),
         Line::from(vec![key("Esc"), desc("Dismiss error / metadata")]),
         Line::from(vec![key("q"), desc("Quit")]),
         Line::from(""),

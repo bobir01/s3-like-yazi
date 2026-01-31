@@ -283,6 +283,53 @@ impl S3Client {
         })
     }
 
+    /// Download a byte range of an object into memory.
+    /// Uses the HTTP Range header to avoid downloading the entire file.
+    pub async fn get_object_range(
+        &self,
+        bucket: &str,
+        key: &str,
+        start: u64,
+        end: u64,
+    ) -> Result<Vec<u8>> {
+        let range = format!("bytes={}-{}", start, end.saturating_sub(1));
+        let output = self
+            .client
+            .get_object()
+            .bucket(bucket)
+            .key(key)
+            .range(range)
+            .send()
+            .await?;
+        let bytes = output.body.collect().await?.into_bytes().to_vec();
+        Ok(bytes)
+    }
+
+    /// Generate a presigned GET URL for an object (for ffmpeg streaming).
+    /// The URL is valid for 1 hour and allows ffmpeg to seek within the file.
+    pub async fn presign_get_object(
+        &self,
+        bucket: &str,
+        key: &str,
+    ) -> Result<String> {
+        use aws_sdk_s3::presigning::PresigningConfig;
+        use std::time::Duration;
+
+        let presigning_config = PresigningConfig::builder()
+            .expires_in(Duration::from_secs(3600))
+            .build()?;
+
+        let presigned = self
+            .client
+            .get_object()
+            .bucket(bucket)
+            .key(key)
+            .presigned(presigning_config)
+            .await?;
+
+        Ok(presigned.uri().to_string())
+    }
+
     /// Download a single object to a local file, reporting progress.
     pub async fn download_object(
         &self,

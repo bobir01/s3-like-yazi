@@ -1,6 +1,6 @@
 [package]
 name = "s3-like-yazi"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "A blazing-fast terminal file manager for S3-compatible storage, inspired by Yazi"
 license = "MIT"
@@ -19,7 +19,7 @@ ratatui = "0.29"
 crossterm = "0.28"
 
 # Async Runtime
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "io-util", "process"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

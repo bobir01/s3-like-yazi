@@ -3,6 +3,7 @@ mod download;
 mod indexing;
 mod local_fs;
 mod navigation;
+pub mod preview;
 mod search;
 
 use std::collections::HashMap;
@@ -126,6 +127,9 @@ pub struct App {
     pub(crate) download_handle: Option<JoinHandle<()>>,
     pub(crate) download_started_at: Option<Instant>,
 
+    // Preview state (triggered explicitly with 'p')
+    pub preview: preview::PreviewState,
+
     pub(crate) config: McConfig,
     pub(crate) clients: HashMap<String, S3Client>,
 }
@@ -176,6 +180,7 @@ impl App {
             download_rx: None,
             download_handle: None,
             download_started_at: None,
+            preview: preview::PreviewState::new(),
             config,
             clients: HashMap::new(),
         }

@@ -1774,7 +1774,7 @@ checksum = "a50f4cf475b65d88e057964e0e9bb1f0aa9bbb2036dc65c64596b42932536984"
 
 [[package]]
 name = "s3-like-yazi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "aws-sdk-s3",
@@ -2154,6 +2154,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2 0.6.2",
  "tokio-macros",
  "windows-sys 0.61.2",

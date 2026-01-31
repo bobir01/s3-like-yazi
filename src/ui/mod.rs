@@ -22,6 +22,8 @@ pub async fn run(app: &mut App) -> anyhow::Result<()> {
 
     let result = event_loop(&mut terminal, app).await;
 
+    app.cleanup_preview();
+
     terminal::disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
@@ -36,6 +38,7 @@ async fn event_loop(
     loop {
         app.drain_index();
         app.drain_download();
+        app.drain_preview();
 
         terminal.draw(|frame| render::render(frame, app))?;
 
@@ -80,13 +83,12 @@ async fn event_loop(
                         KeyCode::Esc => app.cancel_download_mode(),
                         KeyCode::Up | KeyCode::Char('k') => {
                             if app.pane == Pane::LocalFs {
-                                // Check if we're at the "../" position (local_state is None)
                                 if app.local_state.selected().is_none() {
                                     // Already at top
                                 } else {
                                     let i = app.local_state.selected().unwrap();
                                     if i == 0 {
-                                        app.local_state.select(None); // go to "../"
+                                        app.local_state.select(None);
                                     } else {
                                         app.local_move_up();
                                     }
@@ -111,7 +113,6 @@ async fn event_loop(
                         KeyCode::Enter | KeyCode::Char('l') => {
                             if app.pane == Pane::LocalFs {
                                 if app.local_state.selected().is_none() {
-                                    // "../" selected → go to parent
                                     app.local_go_back();
                                 } else {
                                     let idx = app.local_state.selected().unwrap();
@@ -133,7 +134,6 @@ async fn event_loop(
                             }
                         }
                         KeyCode::Char('c') => {
-                            // Confirm download to current local dir
                             app.confirm_download().await;
                         }
                         KeyCode::Char('n') => {
@@ -155,6 +155,31 @@ async fn event_loop(
                         KeyCode::Down => app.move_down(),
                         KeyCode::Backspace => app.search_backspace(),
                         KeyCode::Char(c) => app.search_input(c),
+                        _ => {}
+                    }
+                } else if app.preview.text_content.is_some() {
+                    // ── Text preview scroll mode ──
+                    match key.code {
+                        KeyCode::Char('j') | KeyCode::Down => app.preview.scroll_down(1),
+                        KeyCode::Char('k') | KeyCode::Up => app.preview.scroll_up(1),
+                        KeyCode::Char('d')
+                            if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        {
+                            app.preview.scroll_down(20);
+                        }
+                        KeyCode::Char('u')
+                            if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        {
+                            app.preview.scroll_up(20);
+                        }
+                        KeyCode::Char('g') => app.preview.scroll_offset = 0,
+                        KeyCode::Char('G') => {
+                            app.preview.scroll_offset = app.preview.line_count.saturating_sub(1);
+                        }
+                        KeyCode::Char('q') | KeyCode::Esc => {
+                            app.preview.clear();
+                            app.status_message = None;
+                        }
                         _ => {}
                     }
                 } else {
@@ -182,12 +207,14 @@ async fn event_loop(
                         KeyCode::Backspace | KeyCode::Char('h') => app.go_back().await,
                         KeyCode::Char('r') => app.refresh().await,
                         KeyCode::Tab => app.switch_pane(),
+                        KeyCode::Char('p') => app.request_preview(),
                         KeyCode::Char('?') => app.show_help = true,
                         KeyCode::Esc => {
                             app.error = None;
                             app.metadata = None;
                             app.status_message = None;
                             app.download_progress = None;
+                            app.preview.clear();
                         }
                         _ => {}
                     }
