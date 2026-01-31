@@ -13,12 +13,18 @@ use super::popups;
 use super::status;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
+    let has_text_preview = app.preview.text_content.is_some()
+        || app.preview.loading
+        || app.preview.error.is_some();
+
+    let meta_height = if has_text_preview { Constraint::Percentage(40) } else { Constraint::Length(7) };
+
     let outer = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1),  // Title bar
             Constraint::Min(8),    // Main content
-            Constraint::Length(7), // Metadata panel
+            meta_height,           // Metadata or text preview panel
             Constraint::Length(1), // Status / search bar
         ])
         .split(frame.area());
@@ -62,6 +68,18 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
         local_fs::render_download_target(frame, app, meta_layout[0]);
         render_metadata(frame, app, meta_layout[1]);
+    } else if app.preview.text_content.is_some() || app.preview.loading || app.preview.error.is_some() {
+        // Text preview active: split main area into browser (top) and preview (bottom)
+        let content = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Length(22), Constraint::Min(30)])
+            .split(outer[1]);
+
+        render_remotes(frame, app, content[0]);
+        render_browser(frame, app, content[1]);
+
+        // Use metadata area for text preview
+        render_text_preview(frame, app, outer[2]);
     } else {
         let content = Layout::default()
             .direction(Direction::Horizontal)
@@ -196,6 +214,75 @@ fn render_browser(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect)
         .highlight_spacing(HighlightSpacing::Always);
 
     frame.render_stateful_widget(table, area, &mut app.browser_state);
+}
+
+fn render_text_preview(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let name = app
+        .preview
+        .current_key
+        .as_deref()
+        .and_then(|k| k.rsplit('/').next())
+        .unwrap_or("Preview");
+
+    if app.preview.loading {
+        let block = Block::bordered()
+            .title(format!(" Preview: {} ", name))
+            .border_style(Style::default().fg(Color::Cyan));
+        let content = Paragraph::new(Line::from(Span::styled(
+            "  Loading...",
+            Style::default().fg(Color::DarkGray),
+        )))
+        .block(block);
+        frame.render_widget(content, area);
+    } else if let Some(err) = &app.preview.error {
+        let block = Block::bordered()
+            .title(format!(" Preview: {} ", name))
+            .border_style(Style::default().fg(Color::Cyan));
+        let content = Paragraph::new(Line::from(Span::styled(
+            format!("  Error: {}", err),
+            Style::default().fg(Color::Red),
+        )))
+        .block(block);
+        frame.render_widget(content, area);
+    } else if let Some(text) = &app.preview.text_content {
+        // Inner height = area minus 2 border lines
+        let inner_height = area.height.saturating_sub(2) as usize;
+        let total = app.preview.line_count;
+        let offset = app.preview.scroll_offset;
+
+        let title = format!(
+            " Preview: {} [{}-{}/{}] ",
+            name,
+            offset + 1,
+            (offset + inner_height).min(total),
+            total,
+        );
+
+        let block = Block::bordered()
+            .title(title)
+            .title_bottom(Line::from(" j/k scroll  Ctrl+d/u page  g/G top/bottom  q close ").style(Style::default().fg(Color::DarkGray)))
+            .border_style(Style::default().fg(Color::Cyan));
+
+        let lines: Vec<Line> = text
+            .lines()
+            .enumerate()
+            .skip(offset)
+            .take(inner_height)
+            .map(|(i, line)| {
+                Line::from(vec![
+                    Span::styled(
+                        format!(" {:>4} ", i + 1),
+                        Style::default().fg(Color::DarkGray),
+                    ),
+                    Span::styled("│ ", Style::default().fg(Color::DarkGray)),
+                    Span::raw(line),
+                ])
+            })
+            .collect();
+
+        let content = Paragraph::new(lines).block(block);
+        frame.render_widget(content, area);
+    }
 }
 
 fn render_metadata(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
