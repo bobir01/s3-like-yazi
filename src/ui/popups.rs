@@ -71,11 +71,50 @@ pub fn render_confirm_delete(frame: &mut Frame, app: &App) {
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
 
+pub fn render_bucket_input(frame: &mut Frame, app: &App) {
+    let area = frame.area();
+    let width = 54u16.min(area.width.saturating_sub(4));
+    let height = 7u16;
+    let x = (area.width.saturating_sub(width)) / 2;
+    let y = (area.height.saturating_sub(height)) / 2;
+    let popup = ratatui::layout::Rect::new(x, y, width, height);
+
+    let lines = vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            "  Bucket listing not permitted.",
+            Style::default().fg(Color::Yellow),
+        )),
+        Line::from(vec![
+            Span::styled("  Name: ", Style::default().fg(Color::Cyan)),
+            Span::raw(&app.bucket_input),
+            Span::styled("_", Style::default().fg(Color::DarkGray)),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled(
+            "  Enter confirm  Esc cancel",
+            Style::default().fg(Color::DarkGray),
+        )),
+    ];
+
+    let block = Block::bordered()
+        .title(" Enter Bucket Name ")
+        .title_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+        .border_style(Style::default().fg(Color::Cyan));
+
+    frame.render_widget(Clear, popup);
+    frame.render_widget(Paragraph::new(lines).block(block), popup);
+}
+
 pub fn render_help(frame: &mut Frame) {
     let area = frame.area();
 
     let width = 52u16.min(area.width.saturating_sub(4));
-    let height = 30u16.min(area.height.saturating_sub(2));
+    let height = 31u16.min(area.height.saturating_sub(2));
     let x = (area.width.saturating_sub(width)) / 2;
     let y = (area.height.saturating_sub(height)) / 2;
     let popup = ratatui::layout::Rect::new(x, y, width, height);
@@ -107,6 +146,7 @@ pub fn render_help(frame: &mut Frame) {
         Line::from(vec![key("r"), desc("Refresh current view")]),
         Line::from(vec![key("Shift+C"), desc("Download (copy) to local")]),
         Line::from(vec![key("d / Cmd+Bksp"), desc("Delete file or directory")]),
+        Line::from(vec![key("i"), desc("Enter bucket name manually")]),
         Line::from(vec![key("p"), desc("Preview file (text/image/video)")]),
         Line::from(vec![key("Esc"), desc("Dismiss error / metadata")]),
         Line::from(vec![key("q"), desc("Quit")]),

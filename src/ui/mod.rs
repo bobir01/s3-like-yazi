@@ -10,7 +10,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 
-use crate::app::{App, Pane};
+use crate::app::{App, Location, Pane};
 
 pub async fn run(app: &mut App) -> anyhow::Result<()> {
     terminal::enable_raw_mode()?;
@@ -48,7 +48,20 @@ async fn event_loop(
                     continue;
                 }
 
-                if app.confirm_delete.is_some() {
+                if app.bucket_input_active {
+                    // ── Bucket name input mode ──
+                    match key.code {
+                        KeyCode::Esc => app.cancel_bucket_input(),
+                        KeyCode::Enter => app.submit_bucket_input().await,
+                        KeyCode::Backspace => {
+                            app.bucket_input.pop();
+                        }
+                        KeyCode::Char(c) => {
+                            app.bucket_input.push(c);
+                        }
+                        _ => {}
+                    }
+                } else if app.confirm_delete.is_some() {
                     // ── Delete confirmation ──
                     match key.code {
                         KeyCode::Tab => app.toggle_delete_confirm(),
@@ -208,6 +221,13 @@ async fn event_loop(
                         KeyCode::Char('r') => app.refresh().await,
                         KeyCode::Tab => app.switch_pane(),
                         KeyCode::Char('p') => app.request_preview(),
+                        KeyCode::Char('i') => {
+                            // Open manual bucket input when on bucket list
+                            if let Location::BucketList { ref remote } = app.location {
+                                let remote = remote.clone();
+                                app.show_bucket_input(&remote);
+                            }
+                        }
                         KeyCode::Char('?') => app.show_help = true,
                         KeyCode::Esc => {
                             app.error = None;

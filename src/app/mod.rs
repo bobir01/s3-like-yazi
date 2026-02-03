@@ -130,6 +130,11 @@ pub struct App {
     // Preview state (triggered explicitly with 'p')
     pub preview: preview::PreviewState,
 
+    // Manual bucket name input (when ListBuckets is denied)
+    pub bucket_input_active: bool,
+    pub bucket_input: String,
+    pub(crate) bucket_input_remote: Option<String>,
+
     pub(crate) config: McConfig,
     pub(crate) clients: HashMap<String, S3Client>,
 }
@@ -181,6 +186,9 @@ impl App {
             download_handle: None,
             download_started_at: None,
             preview: preview::PreviewState::new(),
+            bucket_input_active: false,
+            bucket_input: String::new(),
+            bucket_input_remote: None,
             config,
             clients: HashMap::new(),
         }
