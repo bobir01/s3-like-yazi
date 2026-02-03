@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use anyhow::Result;
 use aws_sdk_s3::config::{BehaviorVersion, Credentials, Region};
+use aws_sdk_s3::error::ProvideErrorMetadata;
 use aws_sdk_s3::types::{Delete, ObjectIdentifier};
 use aws_sdk_s3::Client;
 use tokio::sync::{mpsc, Semaphore};
@@ -93,7 +94,11 @@ impl S3Client {
     }
 
     pub async fn list_buckets(&self) -> Result<Vec<BucketInfo>> {
-        let output = self.client.list_buckets().send().await?;
+        let output = self.client.list_buckets().send().await.map_err(|e| {
+            let code = e.code().unwrap_or("Unknown");
+            let msg = e.message().unwrap_or("unknown error");
+            anyhow::anyhow!("[{}] {}", code, msg)
+        })?;
         let buckets = output
             .buckets()
             .iter()

@@ -197,17 +197,24 @@ impl App {
             }
             Err(e) => {
                 let err_str = format!("{}", e);
-                let is_permission = err_str.contains("Access Denied")
-                    || err_str.contains("AccessDenied")
+                let is_access_error = err_str.contains("AccessDenied")
+                    || err_str.contains("Access Denied")
                     || err_str.contains("Forbidden")
-                    || err_str.contains("403");
-                if is_permission {
+                    || err_str.contains("403")
+                    || err_str.contains("Unauthorized")
+                    || err_str.contains("AllAccessDisabled")
+                    || err_str.contains("not authorized");
+                if is_access_error {
                     self.show_bucket_input(alias);
                     self.error = Some(
                         "ListBuckets denied — enter a bucket name manually".to_string(),
                     );
                 } else {
-                    self.error = Some(format!("Failed to list buckets: {}", e));
+                    self.show_bucket_input(alias);
+                    self.error = Some(format!(
+                        "Failed to list buckets: {} — enter a bucket name manually",
+                        e
+                    ));
                 }
             }
         }
