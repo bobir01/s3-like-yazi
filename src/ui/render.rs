@@ -97,6 +97,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         status::render_status_bar(frame, app, outer[3]);
     }
 
+    if app.bucket_input_active {
+        popups::render_bucket_input(frame, app);
+    }
+
     if app.confirm_delete.is_some() {
         popups::render_confirm_delete(frame, app);
     }

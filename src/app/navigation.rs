@@ -196,9 +196,67 @@ impl App {
                 self.pane = Pane::Browser;
             }
             Err(e) => {
-                self.error = Some(format!("Failed to list buckets: {}", e));
+                let err_str = format!("{}", e);
+                let is_access_error = err_str.contains("AccessDenied")
+                    || err_str.contains("Access Denied")
+                    || err_str.contains("Forbidden")
+                    || err_str.contains("403")
+                    || err_str.contains("Unauthorized")
+                    || err_str.contains("AllAccessDisabled")
+                    || err_str.contains("not authorized");
+                if is_access_error {
+                    self.show_bucket_input(alias);
+                    self.error = Some(
+                        "ListBuckets denied — enter a bucket name manually".to_string(),
+                    );
+                } else {
+                    self.show_bucket_input(alias);
+                    self.error = Some(format!(
+                        "Failed to list buckets: {} — enter a bucket name manually",
+                        e
+                    ));
+                }
             }
         }
+    }
+
+    pub(crate) fn show_bucket_input(&mut self, alias: &str) {
+        self.bucket_input_active = true;
+        self.bucket_input.clear();
+        self.bucket_input_remote = Some(alias.to_string());
+        self.location = Location::BucketList {
+            remote: alias.to_string(),
+        };
+        self.entries.clear();
+        self.browser_state.select(None);
+        self.pane = Pane::Browser;
+    }
+
+    pub async fn submit_bucket_input(&mut self) {
+        let bucket = self.bucket_input.trim().to_string();
+        if bucket.is_empty() {
+            return;
+        }
+        let remote = match self.bucket_input_remote.clone() {
+            Some(r) => r,
+            None => return,
+        };
+        self.bucket_input_active = false;
+        self.bucket_input.clear();
+        self.bucket_input_remote = None;
+        self.error = None;
+        self.enter_bucket(&remote, &bucket).await;
+    }
+
+    pub fn cancel_bucket_input(&mut self) {
+        self.bucket_input_active = false;
+        self.bucket_input.clear();
+        self.bucket_input_remote = None;
+        self.error = None;
+        self.location = Location::RemoteList;
+        self.entries.clear();
+        self.browser_state.select(None);
+        self.pane = Pane::Remotes;
     }
 
     pub(crate) async fn enter_bucket(&mut self, remote: &str, bucket: &str) {
