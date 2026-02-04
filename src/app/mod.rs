@@ -206,9 +206,32 @@ impl App {
                 &alias_config.url,
                 &alias_config.access_key,
                 &alias_config.secret_key,
+                alias_config.region.as_deref(),
             )?;
             self.clients.insert(alias.to_string(), client);
         }
+        Ok(())
+    }
+
+    /// Recreate the client for an alias with a different region.
+    pub(crate) fn recreate_client_with_region(
+        &mut self,
+        alias: &str,
+        region: &str,
+    ) -> anyhow::Result<()> {
+        let alias_config = self
+            .config
+            .aliases
+            .get(alias)
+            .ok_or_else(|| anyhow::anyhow!("Unknown alias: {}", alias))?;
+        let client = S3Client::new(
+            alias,
+            &alias_config.url,
+            &alias_config.access_key,
+            &alias_config.secret_key,
+            Some(region),
+        )?;
+        self.clients.insert(alias.to_string(), client);
         Ok(())
     }
 

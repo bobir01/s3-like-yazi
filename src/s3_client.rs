@@ -73,14 +73,15 @@ fn format_aws_datetime(dt: &aws_sdk_s3::primitives::DateTime) -> String {
 }
 
 impl S3Client {
-    pub fn new(alias: &str, url: &str, access_key: &str, secret_key: &str) -> Result<Self> {
+    pub fn new(alias: &str, url: &str, access_key: &str, secret_key: &str, region: Option<&str>) -> Result<Self> {
+        let region_str = region.unwrap_or("us-east-1");
         let credentials =
             Credentials::new(access_key, secret_key, None, None, "yazi-like-s3");
 
         let config = aws_sdk_s3::Config::builder()
             .behavior_version(BehaviorVersion::latest())
             .endpoint_url(url)
-            .region(Region::new("us-east-1"))
+            .region(Region::new(region_str.to_string()))
             .credentials_provider(credentials)
             .force_path_style(true)
             .build();

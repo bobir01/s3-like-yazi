@@ -182,7 +182,25 @@ impl App {
         }
 
         let client = self.clients[alias].clone();
-        match client.list_buckets().await {
+        let result = match client.list_buckets().await {
+            Ok(buckets) => Ok(buckets),
+            Err(e) => {
+                let err_str = format!("{}", e);
+                // Auto-detect correct region and retry once
+                if let Some(region) = Self::extract_region_hint(&err_str) {
+                    if self.recreate_client_with_region(alias, &region).is_ok() {
+                        let retried = self.clients[alias].clone();
+                        retried.list_buckets().await
+                    } else {
+                        Err(e)
+                    }
+                } else {
+                    Err(e)
+                }
+            }
+        };
+
+        match result {
             Ok(buckets) => {
                 self.entries = buckets.into_iter().map(Entry::Bucket).collect();
                 self.location = Location::BucketList {
@@ -218,6 +236,23 @@ impl App {
                 }
             }
         }
+    }
+
+    /// Parse the correct region from "expecting '<region>'" in an
+    /// AuthorizationHeaderMalformed error message.
+    fn extract_region_hint(err: &str) -> Option<String> {
+        if !err.contains("AuthorizationHeaderMalformed") {
+            return None;
+        }
+        // Pattern: expecting 'us-east-2'
+        let marker = "expecting '";
+        let start = err.find(marker)? + marker.len();
+        let end = err[start..].find('\'')?;
+        let region = &err[start..start + end];
+        if region.is_empty() {
+            return None;
+        }
+        Some(region.to_string())
     }
 
     pub(crate) fn show_bucket_input(&mut self, alias: &str) {

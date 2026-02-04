@@ -20,6 +20,7 @@ pub struct AliasConfig {
     pub api: Option<String>,
     #[allow(dead_code)]
     pub path: Option<String>,
+    pub region: Option<String>,
 }
 
 impl McConfig {
