@@ -137,6 +137,12 @@ pub struct App {
 
     pub(crate) config: McConfig,
     pub(crate) clients: HashMap<String, S3Client>,
+
+    // Navigation history: location key -> cursor index
+    pub(crate) nav_history: HashMap<String, usize>,
+
+    // Presigned download URL (Shift+L)
+    pub download_url: Option<String>,
 }
 
 impl App {
@@ -191,6 +197,8 @@ impl App {
             bucket_input_remote: None,
             config,
             clients: HashMap::new(),
+            nav_history: HashMap::new(),
+            download_url: None,
         }
     }
 

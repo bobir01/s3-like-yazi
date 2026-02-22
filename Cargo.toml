@@ -31,6 +31,8 @@ dirs = "6"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 humansize = "2"
 anyhow = "1"
+regex = "1"
+arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
 
 [profile.release]
 strip = true

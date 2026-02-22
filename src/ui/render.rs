@@ -330,6 +330,13 @@ fn render_metadata(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             ]));
         }
 
+        if let Some(url) = &app.download_url {
+            lines.push(Line::from(vec![
+                Span::styled("  URL (1h):     ", Style::default().fg(Color::Green)),
+                Span::styled(url.as_str(), Style::default().fg(Color::Green)),
+            ]));
+        }
+
         lines
     } else {
         vec![Line::from(Span::styled(

@@ -114,7 +114,7 @@ pub fn render_help(frame: &mut Frame) {
     let area = frame.area();
 
     let width = 52u16.min(area.width.saturating_sub(4));
-    let height = 31u16.min(area.height.saturating_sub(2));
+    let height = 33u16.min(area.height.saturating_sub(2));
     let x = (area.width.saturating_sub(width)) / 2;
     let y = (area.height.saturating_sub(height)) / 2;
     let popup = ratatui::layout::Rect::new(x, y, width, height);
@@ -146,6 +146,7 @@ pub fn render_help(frame: &mut Frame) {
         Line::from(vec![key("r"), desc("Refresh current view")]),
         Line::from(vec![key("Shift+C"), desc("Download (copy) to local")]),
         Line::from(vec![key("d / Cmd+Bksp"), desc("Delete file or directory")]),
+        Line::from(vec![key("Shift+L"), desc("Copy presigned URL (1h)")]),
         Line::from(vec![key("i"), desc("Enter bucket name manually")]),
         Line::from(vec![key("p"), desc("Preview file (text/image/video)")]),
         Line::from(vec![key("Esc"), desc("Dismiss error / metadata")]),
@@ -167,7 +168,7 @@ pub fn render_help(frame: &mut Frame) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from(vec![key("Type"), desc("Filter by name")]),
+        Line::from(vec![key("Type"), desc("Filter (supports glob * ? and /regex/)")]),
         Line::from(vec![key("Up / Down"), desc("Navigate results")]),
         Line::from(vec![key("Enter"), desc("Jump to file")]),
         Line::from(vec![key("Esc"), desc("Cancel search")]),

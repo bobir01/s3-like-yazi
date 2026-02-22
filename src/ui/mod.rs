@@ -229,9 +229,13 @@ async fn event_loop(
                             }
                         }
                         KeyCode::Char('?') => app.show_help = true,
+                        KeyCode::Char('L') => {
+                            app.copy_download_link().await;
+                        }
                         KeyCode::Esc => {
                             app.error = None;
                             app.metadata = None;
+                            app.download_url = None;
                             app.status_message = None;
                             app.download_progress = None;
                             app.preview.clear();

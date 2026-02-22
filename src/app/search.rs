@@ -1,5 +1,53 @@
 use super::{parent_prefix, App, Entry, Location, Pane};
 
+/// Match query against text. Supports:
+/// - `/pattern/` — regex mode
+/// - `*` / `?`   — glob mode  
+/// - default      — case-insensitive substring
+fn match_query(query: &str, text: &str) -> bool {
+    let q = query.trim();
+    if q.is_empty() {
+        return true;
+    }
+    // Regex mode: /pattern/
+    if q.starts_with('/') && q.ends_with('/') && q.len() > 2 {
+        let pattern = &q[1..q.len() - 1];
+        if let Ok(re) = regex::Regex::new(&format!("(?i){}", pattern)) {
+            return re.is_match(text);
+        }
+    }
+    // Glob mode
+    if q.contains('*') || q.contains('?') {
+        return glob_match(&q.to_lowercase(), &text.to_lowercase());
+    }
+    // Default: substring
+    text.to_lowercase().contains(&q.to_lowercase())
+}
+
+/// DP-based glob matching: `*` matches any sequence, `?` matches any single char.
+fn glob_match(pat: &str, text: &str) -> bool {
+    let pat: Vec<char> = pat.chars().collect();
+    let text: Vec<char> = text.chars().collect();
+    let (m, n) = (pat.len(), text.len());
+    let mut dp = vec![vec![false; n + 1]; m + 1];
+    dp[0][0] = true;
+    for i in 1..=m {
+        if pat[i - 1] == '*' {
+            dp[i][0] = dp[i - 1][0];
+        }
+    }
+    for i in 1..=m {
+        for j in 1..=n {
+            if pat[i - 1] == '*' {
+                dp[i][j] = dp[i - 1][j] || dp[i][j - 1];
+            } else if pat[i - 1] == '?' || pat[i - 1] == text[j - 1] {
+                dp[i][j] = dp[i - 1][j - 1];
+            }
+        }
+    }
+    dp[m][n]
+}
+
 impl App {
     pub fn start_search(&mut self) {
         self.search_active = true;
@@ -71,7 +119,7 @@ impl App {
                 self.entries = self
                     .search_pool
                     .iter()
-                    .filter(|obj| obj.key.to_lowercase().contains(&query))
+                    .filter(|obj| match_query(&query, &obj.key))
                     .cloned()
                     .map(Entry::Object)
                     .collect();
@@ -83,7 +131,7 @@ impl App {
                 self.entries = self
                     .saved_entries
                     .iter()
-                    .filter(|e| e.name().to_lowercase().contains(&query))
+                    .filter(|e| match_query(&query, e.name()))
                     .cloned()
                     .collect();
             }

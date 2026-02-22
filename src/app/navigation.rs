@@ -84,6 +84,8 @@ impl App {
                         Entry::Bucket(b) => {
                             if let Location::BucketList { ref remote } = self.location {
                                 let remote = remote.clone();
+                                // Remember which bucket row we selected
+                                self.nav_history.insert(format!("{}/buckets", remote), idx);
                                 self.enter_bucket(&remote, &b.name).await;
                             }
                         }
@@ -92,11 +94,14 @@ impl App {
                                 if let Location::ObjectList {
                                     ref remote,
                                     ref bucket,
-                                    ..
-                                } = self.location
+                                    ref prefix,
+                                } = self.location.clone()
                                 {
                                     let remote = remote.clone();
                                     let bucket = bucket.clone();
+                                    // Save position in current prefix before entering subfolder
+                                    let hist_key = format!("{}/{}/{}", remote, bucket, prefix);
+                                    self.nav_history.insert(hist_key, idx);
                                     self.enter_prefix(&remote, &bucket, &obj.key).await;
                                 }
                             } else {
@@ -119,6 +124,49 @@ impl App {
         }
     }
 
+    pub async fn copy_download_link(&mut self) {
+        if let Some(idx) = self.browser_state.selected() {
+            if idx >= self.entries.len() {
+                return;
+            }
+            let entry = &self.entries[idx];
+            match entry {
+                crate::app::Entry::Object(obj) if !obj.is_dir => {
+                    let key = obj.key.clone();
+                    if let Location::ObjectList { ref remote, ref bucket, .. } = self.location {
+                        let remote = remote.clone();
+                        let bucket = bucket.clone();
+                        if let Some(client) = self.clients.get(&remote) {
+                            let client = client.clone();
+                            match client.presign_get_object(&bucket, &key).await {
+                                Ok(url) => {
+                                    // Try clipboard, fall back gracefully
+                                    let copied = arboard::Clipboard::new()
+                                        .and_then(|mut cb| cb.set_text(url.clone()))
+                                        .is_ok();
+                                    self.download_url = Some(url);
+                                    self.status_message = Some(if copied {
+                                        "Presigned URL copied to clipboard! (valid 1h)".to_string()
+                                    } else {
+                                        "Presigned URL generated (see metadata panel, valid 1h)".to_string()
+                                    });
+                                }
+                                Err(e) => {
+                                    self.status_message = Some(format!("Failed to generate URL: {}", e));
+                                }
+                            }
+                        } else {
+                            self.status_message = Some("Not connected to remote".to_string());
+                        }
+                    }
+                }
+                _ => {
+                    self.status_message = Some("Select a file to generate a download link".to_string());
+                }
+            }
+        }
+    }
+
     pub async fn go_back(&mut self) {
         if self.search_active {
             self.cancel_search();
@@ -127,6 +175,7 @@ impl App {
         self.error = None;
         self.status_message = None;
         self.metadata = None;
+        self.download_url = None;
         self.preview.clear();
         match self.location.clone() {
             Location::RemoteList => {}
@@ -143,10 +192,22 @@ impl App {
                 prefix,
             } => {
                 if prefix.is_empty() {
+                    // Going back to bucket list — restore bucket row selection
                     self.enter_remote(&remote).await;
+                    let hist_key = format!("{}/buckets", remote);
+                    if let Some(&pos) = self.nav_history.get(&hist_key) {
+                        let pos = pos.min(self.entries.len().saturating_sub(1));
+                        self.browser_state.select(Some(pos));
+                    }
                 } else {
                     let parent = parent_prefix(&prefix);
                     self.enter_prefix(&remote, &bucket, &parent).await;
+                    // Restore cursor to where we were in the parent prefix
+                    let hist_key = format!("{}/{}/{}", remote, bucket, parent);
+                    if let Some(&pos) = self.nav_history.get(&hist_key) {
+                        let pos = pos.min(self.entries.len().saturating_sub(1));
+                        self.browser_state.select(Some(pos));
+                    }
                 }
             }
         }
