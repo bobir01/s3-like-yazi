@@ -33,6 +33,7 @@ humansize = "2"
 anyhow = "1"
 regex = "1"
 arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
+mcap = "0.24"
 
 [profile.release]
 strip = true

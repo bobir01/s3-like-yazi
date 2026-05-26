@@ -1,10 +1,10 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Cell, HighlightSpacing, List, ListItem, Paragraph, Row, Table, Wrap,
 };
-use ratatui::Frame;
 
 use crate::app::{App, Entry, Pane};
 
@@ -13,16 +13,19 @@ use super::popups;
 use super::status;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
-    let has_text_preview = app.preview.text_content.is_some()
-        || app.preview.loading
-        || app.preview.error.is_some();
+    let has_text_preview =
+        app.preview.text_content.is_some() || app.preview.loading || app.preview.error.is_some();
 
-    let meta_height = if has_text_preview { Constraint::Percentage(40) } else { Constraint::Length(7) };
+    let meta_height = if has_text_preview {
+        Constraint::Percentage(40)
+    } else {
+        Constraint::Length(7)
+    };
 
     let outer = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),  // Title bar
+            Constraint::Length(1), // Title bar
             Constraint::Min(8),    // Main content
             meta_height,           // Metadata or text preview panel
             Constraint::Length(1), // Status / search bar
@@ -68,7 +71,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
         local_fs::render_download_target(frame, app, meta_layout[0]);
         render_metadata(frame, app, meta_layout[1]);
-    } else if app.preview.text_content.is_some() || app.preview.loading || app.preview.error.is_some() {
+    } else if app.preview.text_content.is_some()
+        || app.preview.loading
+        || app.preview.error.is_some()
+    {
         // Text preview active: split main area into browser (top) and preview (bottom)
         let content = Layout::default()
             .direction(Direction::Horizontal)
@@ -152,7 +158,14 @@ fn render_browser(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect)
         .map(|entry| match entry {
             Entry::Bucket(b) => {
                 let date = b.creation_date.clone().unwrap_or_default();
-                ("B".into(), b.name.clone(), "bucket".into(), date, Color::Yellow, Color::White)
+                (
+                    "B".into(),
+                    b.name.clone(),
+                    "bucket".into(),
+                    date,
+                    Color::Yellow,
+                    Color::White,
+                )
             }
             Entry::Object(obj) if obj.is_dir => (
                 "D".into(),
@@ -165,7 +178,14 @@ fn render_browser(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect)
             Entry::Object(obj) => {
                 let size = humansize::format_size(obj.size as u64, humansize::BINARY);
                 let date = obj.last_modified.clone().unwrap_or_default();
-                (" ".into(), obj.display_name.clone(), size, date, Color::Reset, Color::White)
+                (
+                    " ".into(),
+                    obj.display_name.clone(),
+                    size,
+                    date,
+                    Color::Reset,
+                    Color::White,
+                )
             }
         })
         .collect();
@@ -175,7 +195,11 @@ fn render_browser(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect)
     let rows: Vec<Row> = row_data
         .iter()
         .map(|(icon, name, size, date, icon_color, name_color)| {
-            let size_color = if icon.trim().is_empty() { Color::Green } else { Color::DarkGray };
+            let size_color = if icon.trim().is_empty() {
+                Color::Green
+            } else {
+                Color::DarkGray
+            };
             Row::new(vec![
                 Cell::from(icon.as_str()).style(Style::default().fg(*icon_color)),
                 Cell::from(name.as_str()).style(Style::default().fg(*name_color)),
@@ -193,21 +217,13 @@ fn render_browser(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect)
     ];
 
     let title = if app.search_active {
-        format!(
-            " {} [{} matches] ",
-            app.location_display(),
-            visible_len
-        )
+        format!(" {} [{} matches] ", app.location_display(), visible_len)
     } else {
         format!(" {} ", app.location_display())
     };
 
     let table = Table::new(rows, widths)
-        .block(
-            Block::bordered()
-                .title(title)
-                .border_style(border_style),
-        )
+        .block(Block::bordered().title(title).border_style(border_style))
         .column_spacing(1)
         .row_highlight_style(
             Style::default()
@@ -232,11 +248,59 @@ fn render_text_preview(frame: &mut Frame, app: &App, area: ratatui::layout::Rect
         let block = Block::bordered()
             .title(format!(" Preview: {} ", name))
             .border_style(Style::default().fg(Color::Cyan));
-        let content = Paragraph::new(Line::from(Span::styled(
-            "  Loading...",
-            Style::default().fg(Color::DarkGray),
-        )))
-        .block(block);
+        let lines = if let Some(progress) = &app.preview.progress {
+            let pct = progress
+                .total_bytes
+                .filter(|total| *total > 0)
+                .map(|total| {
+                    (progress.bytes_read as f64 / total as f64 * 100.0).clamp(0.0, 100.0) as u16
+                });
+            let bar_width = 24usize.min(area.width.saturating_sub(32) as usize).max(8);
+            let filled = pct
+                .map(|pct| (bar_width as f64 * pct as f64 / 100.0) as usize)
+                .unwrap_or(0)
+                .min(bar_width);
+            let bar = format!(
+                "{}{}",
+                "\u{2588}".repeat(filled),
+                "\u{2591}".repeat(bar_width - filled)
+            );
+            let total = progress
+                .total_bytes
+                .map(|total| humansize::format_size(total, humansize::BINARY))
+                .unwrap_or_else(|| "unknown".to_string());
+            let pct_text = pct
+                .map(|pct| format!(" {:>3}%", pct))
+                .unwrap_or_else(|| "     ".to_string());
+
+            vec![
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("  ", Style::default()),
+                    Span::styled(&progress.label, Style::default().fg(Color::Cyan)),
+                ]),
+                Line::from(vec![
+                    Span::raw("  ["),
+                    Span::styled(bar, Style::default().fg(Color::Green)),
+                    Span::raw("]"),
+                    Span::styled(pct_text, Style::default().fg(Color::White)),
+                ]),
+                Line::from(Span::styled(
+                    format!(
+                        "  {} / {} needed",
+                        humansize::format_size(progress.bytes_read, humansize::BINARY),
+                        total
+                    ),
+                    Style::default().fg(Color::DarkGray),
+                )),
+            ]
+        } else {
+            vec![Line::from(Span::styled(
+                "  Loading...",
+                Style::default().fg(Color::DarkGray),
+            ))]
+        };
+        let content = Paragraph::new(lines).block(block);
         frame.render_widget(content, area);
     } else if let Some(err) = &app.preview.error {
         let block = Block::bordered()
@@ -264,7 +328,10 @@ fn render_text_preview(frame: &mut Frame, app: &App, area: ratatui::layout::Rect
 
         let block = Block::bordered()
             .title(title)
-            .title_bottom(Line::from(" j/k scroll  Ctrl+d/u page  g/G top/bottom  q close ").style(Style::default().fg(Color::DarkGray)))
+            .title_bottom(
+                Line::from(" j/k scroll  Ctrl+d/u page  g/G top/bottom  C copy  q close ")
+                    .style(Style::default().fg(Color::DarkGray)),
+            )
             .border_style(Style::default().fg(Color::Cyan));
 
         let lines: Vec<Line> = text
@@ -349,6 +416,8 @@ fn render_metadata(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         .title(" Metadata ")
         .border_style(Style::default().fg(Color::DarkGray));
 
-    let paragraph = Paragraph::new(content).block(block).wrap(Wrap { trim: false });
+    let paragraph = Paragraph::new(content)
+        .block(block)
+        .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, area);
 }

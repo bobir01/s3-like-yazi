@@ -148,7 +148,7 @@ pub fn render_help(frame: &mut Frame) {
         Line::from(vec![key("d / Cmd+Bksp"), desc("Delete file or directory")]),
         Line::from(vec![key("Shift+L"), desc("Copy presigned URL (1h)")]),
         Line::from(vec![key("i"), desc("Enter bucket name manually")]),
-        Line::from(vec![key("p"), desc("Preview file (text/image/video)")]),
+        Line::from(vec![key("p"), desc("Preview file (text/image/video/MCAP)")]),
         Line::from(vec![key("Esc"), desc("Dismiss error / metadata")]),
         Line::from(vec![key("q"), desc("Quit")]),
         Line::from(""),
