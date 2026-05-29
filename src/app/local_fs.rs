@@ -20,11 +20,12 @@ impl App {
             }
         }
 
-        // Sort: directories first, then alphabetical
+        // Sort: directories first, then date-aware alphabetical
         entries.sort_by(|a, b| {
-            b.is_dir
-                .cmp(&a.is_dir)
-                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+            b.is_dir.cmp(&a.is_dir).then_with(|| {
+                super::sort::date_aware_sort_key(&a.name.to_lowercase())
+                    .cmp(&super::sort::date_aware_sort_key(&b.name.to_lowercase()))
+            })
         });
 
         self.local_entries = entries;

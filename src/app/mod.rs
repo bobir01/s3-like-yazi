@@ -5,6 +5,7 @@ mod local_fs;
 mod navigation;
 pub mod preview;
 mod search;
+pub mod sort;
 
 use std::collections::HashMap;
 use std::path::PathBuf;

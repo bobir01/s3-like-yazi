@@ -100,7 +100,7 @@ impl S3Client {
             let msg = e.message().unwrap_or("unknown error");
             anyhow::anyhow!("[{}] {}", code, msg)
         })?;
-        let buckets = output
+        let mut buckets: Vec<BucketInfo> = output
             .buckets()
             .iter()
             .filter_map(|b| {
@@ -110,6 +110,10 @@ impl S3Client {
                 })
             })
             .collect();
+        buckets.sort_by(|a, b| {
+            crate::app::sort::date_aware_sort_key(&a.name)
+                .cmp(&crate::app::sort::date_aware_sort_key(&b.name))
+        });
         Ok(buckets)
     }
 
@@ -157,6 +161,13 @@ impl S3Client {
                 });
             }
         }
+
+        entries.sort_by(|a, b| {
+            b.is_dir.cmp(&a.is_dir).then_with(|| {
+                crate::app::sort::date_aware_sort_key(&a.display_name)
+                    .cmp(&crate::app::sort::date_aware_sort_key(&b.display_name))
+            })
+        });
 
         Ok(entries)
     }
