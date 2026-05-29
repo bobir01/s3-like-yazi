@@ -189,6 +189,7 @@ async fn event_loop(
                         KeyCode::Char('G') => {
                             app.preview.scroll_offset = app.preview.line_count.saturating_sub(1);
                         }
+                        KeyCode::Char('C') => app.copy_preview_to_clipboard(),
                         KeyCode::Char('q') | KeyCode::Esc => {
                             app.preview.clear();
                             app.status_message = None;
